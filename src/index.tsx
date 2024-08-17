@@ -3,7 +3,7 @@ import './styles.scss';
 import { TProps, TSingleFace, TValue } from './_types';
 import { defaultFaceGrid, faceClasses, faceTransformMap, times, valueClassMap } from './_utils';
 
-const { useState, useEffect, forwardRef, useImperativeHandle } = React;
+const { useState, useEffect, useRef, useImperativeHandle } = React;
 
 const getFaceArray = (size: number, faces: string[], faceBg?: string): TSingleFace[] => {
     return faceClasses.map((className: string, index: number) => ({
@@ -27,24 +27,19 @@ const getFaceArray = (size: number, faces: string[], faceBg?: string): TSingleFa
     }));
 };
 
-type TDiceRef = {
-    rollDice: (value: TValue) => void;
-};
-
-const Dice = forwardRef((props: TProps, ref: React.MutableRefObject<TDiceRef>) => {
+const Dice = React.forwardRef<
+    { rollDice: (value?: TValue) => void },
+    TProps
+>((props, ref) => {
     const { rollingTime = 1000, onRoll, defaultValue = 6, size = 250, faceBg, faces = [], disabled, cheatValue, placement, sound, triggers = ['click'], ...rest } = props;
     const [value, setValue] = useState<TValue>(defaultValue);
     const [rolling, setRolling] = useState(false);
     const [faceArray, setFaceArray] = useState<TSingleFace[]>([]);
     const [placementStyles, setPlacementStyles] = useState<React.CSSProperties>({});
     const [buttonStyles, setButtonStyles] = useState<React.CSSProperties>({});
+    const diceAudioRef = useRef<HTMLAudioElement | null>(null);
 
     const handleDiceRoll = (value?: TValue) => {
-        let diceAudio: HTMLAudioElement;
-        if (sound) {
-            diceAudio = new Audio(sound);
-            diceAudio.play();
-        }
         setRolling(true);
         setTimeout(() => {
             let rollValue = Math.floor((Math.random() * 6) + 1) as TValue;
@@ -55,7 +50,10 @@ const Dice = forwardRef((props: TProps, ref: React.MutableRefObject<TDiceRef>) =
             setRolling(false);
             setValue(rollValue);
             
-            if (diceAudio) diceAudio.pause();
+            if (diceAudioRef.current) {
+                diceAudioRef.current.pause();
+                diceAudioRef.current.currentTime = 0;
+            }
             if (!onRoll) return;
             onRoll(rollValue);
         }, rollingTime);
@@ -111,20 +109,25 @@ const Dice = forwardRef((props: TProps, ref: React.MutableRefObject<TDiceRef>) =
         });
     }, [placementStyles, size, disabled]);
 
+    useEffect(() => {
+        if (sound) {
+            diceAudioRef.current = new Audio(sound);
+        }
+    }, [sound]);
+
     if (!faceArray?.length) return null;
 
     return (
         <button disabled={disabled || rolling} onClick={clickHandler} style={buttonStyles} className={`_space3d ${valueClassMap[value]} ${rolling && 'rolling'}`}>
             <div className="_3dbox">
-                <div {...faceArray[0]} />
-                <div {...faceArray[1]} />
-                <div {...faceArray[2]} />
-                <div {...faceArray[3]} />
-                <div {...faceArray[4]} />
-                <div {...faceArray[5]} />
+                {faceArray.map((face, index) => (
+                    <div key={index} {...face} />
+                ))}
             </div>
         </button>
     )
 });
+
+Dice.displayName = 'Dice';
 
 export default Dice;
